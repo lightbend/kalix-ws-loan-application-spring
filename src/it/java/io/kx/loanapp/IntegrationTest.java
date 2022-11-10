@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -37,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Since this is an integration tests, it interacts with the application using a WebClient
  * (already configured and provided automatically through injection).
  */
+@TestPropertySource(locations="classpath:test.properties")
 @RunWith(SpringRunner.class)
 @SpringBootTest(classes = Main.class)
 public class IntegrationTest extends KalixIntegrationTestKitSupport {
@@ -311,6 +313,62 @@ public class IntegrationTest extends KalixIntegrationTestKitSupport {
                     .retrieve()
                     .toEntity(LoanProcApi.EmptyResponse.class)
                     .block(timeout);
+
+    //eventing is eventually consistent
+    Thread.sleep(4000);
+
+    logger.info("Sending get on loan app...");
+    LoanAppApi.GetResponse getRes =
+            webClient.get()
+                    .uri("/loanapp/"+loanAppId)
+                    .retrieve()
+                    .bodyToMono(LoanAppApi.GetResponse.class)
+                    .block(timeout);
+
+    assertEquals(LoanAppDomainStatus.STATUS_DECLINED,getRes.state().status());
+
+
+  }
+
+  @Test
+  public void endToEndProcessingDeclinedByTimeout() throws Exception {
+    var loanAppId = UUID.randomUUID().toString();
+    var reviewerId = "99999";
+    var submitRequest = new LoanAppApi.SubmitRequest(
+            "clientId",
+            5000,
+            2000,
+            36);
+
+    logger.info("Sending loan app submit...");
+    ResponseEntity<LoanAppApi.EmptyResponse> emptyLaRes =
+            webClient.post()
+                    .uri("/loanapp/"+loanAppId+"/submit")
+                    .bodyValue(submitRequest)
+                    .retrieve()
+                    .toEntity(LoanAppApi.EmptyResponse.class)
+                    .block(timeout);
+
+    assertEquals(HttpStatus.OK,emptyLaRes.getStatusCode());
+
+
+    //views are eventually consistent
+    Thread.sleep(2000);
+    logger.info("Checking loan proc view for STATUS_READY_FOR_REVIEW...");
+
+    List<LoanProcViewModel.ViewRecord> viewResList =
+            webClient.post()
+                    .uri("/loanproc/views/by-status")
+                    .bodyValue(new LoanProcViewModel.ViewRequest(LoanProcDomainStatus.STATUS_READY_FOR_REVIEW.name()))
+                    .retrieve()
+                    .bodyToFlux(LoanProcViewModel.ViewRecord.class)
+                    .collectList().block(timeout);
+
+    assertTrue(viewResList.stream().filter(vr -> vr.loanAppId().equals(loanAppId)).findFirst().isPresent());
+
+
+    //Waiting for timeout and decline
+    Thread.sleep(5000);
 
     //eventing is eventually consistent
     Thread.sleep(4000);

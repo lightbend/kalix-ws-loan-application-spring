@@ -371,3 +371,36 @@ Get loan application:
 ```
 curl -XGET https://<somehost>.kalix.app/loanapp/3 -H "Content-Type: application/json"
 ```
+
+# Timers
+##Creating config
+1. Create class `io.kx.loanproc.LoanProcConfig`
+2. Add class level annotation:
+```
+@Configuration
+@ConfigurationProperties(prefix = "loanproc")
+```
+3. Add parameter `Integer timeoutMillis` with getter and setter
+4. In `src/main/resources/application.properties` add `loanproc.timeoutMillis = 600000`
+5. Create folder `src/it/resources`
+6. Create file `src/it/resources/test.properties` and add `loanproc.timeoutMillis = 5000`
+##Action for managing timer for timeout
+1. Create `io.kx.loanproc.action.LoanProcTimeoutAction` class extending `Action`
+2. Add class level annotation `@Subscribe.EventSourcedEntity(value = LoanProcService.class, ignoreUnknown = true)`
+3. Inject `KalixClient kalixClient` and `LoanProcConfig config` via constructor
+4. Implement `getTimerName` method 
+5. Implement event handler methods for `onReadyForReview`, `onApproved` and `onDeclined`
+   
+<i><b>Tip</b></i>: Check content in `timers-step-5` git branch
+# Create integration tests for eventing (end-to-end test)
+1. Update `io.kx.IntegrationTest` and add `endToEndProcessingDeclinedByTimeout` test
+2. Add class level annotation: `@TestPropertySource(locations="classpath:test.properties")`
+<i><b>Tip</b></i>: Check content in `timers-step-5` git branch
+## Run integration test
+```
+mvn -Pit verify
+```
+## Package & Deploy
+```
+mvn deploy
+```
