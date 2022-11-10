@@ -287,3 +287,34 @@ Approve:
 ```
 curl -XPOST -d '{"reviewerId":"9999"}' https://<somehost>.kalix.app/loanproc/1/approve -H "Content-Type: application/json"
 ```
+
+# Views
+## Create a view
+1. Create package `io.kx.loanproc.view`
+2. Create Java Interface `io.kx.loanproc.view.LoanProcViewModel` with Java records for `ViewRecord` and `ViewRequest`
+3. Create `io.kx.loanproc.viewLoanProcByStatusView` class extending `View`
+   1. Add class level annotation for table name: `@Table("loanproc_by_status")`
+   2. Implement getLoanProcByStatus with `@Query` and `@PostMapping` annotations
+   3. Implement event handler methods for each domain event
+
+<i><b>Tip</b></i>: Check content in `views-step-3` git branch
+
+##Unit test
+Because of the nature of views only Integration tests are done.
+
+## Create integration tests for view
+In `io.kx.loanproc.IntegrationTest` copy `loanProcHappyPathWith` test to `loanProcHappyPathWithView` and add view query via `webClient`
+<i><b>Tip</b></i>: Check content in `views-step-3` git branch
+
+## Run integration test
+```
+mvn -Pit verify
+```
+## Package & Deploy
+```
+mvn deploy
+```
+## Test service in production
+```
+curl -XPOST -d {"statusId":"STATUS_APPROVED"} https://<somehost>.kalix.app/loanproc/views/by-status -H "Content-Type: application/json"
+```
