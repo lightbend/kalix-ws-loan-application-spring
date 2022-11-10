@@ -3,6 +3,8 @@ package io.kx.loanapp;
 import io.kx.Main;
 import io.kx.loanapp.api.LoanAppApi;
 import io.kx.loanapp.domain.LoanAppDomainStatus;
+import io.kx.loanproc.api.LoanProcApi;
+import io.kx.loanproc.domain.LoanProcDomainStatus;
 import kalix.springsdk.testkit.KalixIntegrationTestKitSupport;
 
 import org.junit.jupiter.api.Test;
@@ -18,9 +20,11 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 /**
@@ -85,5 +89,50 @@ public class IntegrationTest extends KalixIntegrationTestKitSupport {
                     .block(timeout);
 
     assertEquals(LoanAppDomainStatus.STATUS_APPROVED,getRes.state().status());
+  }
+
+  @Test
+  public void loanProcHappyPath() throws Exception {
+    var loanAppId = UUID.randomUUID().toString();
+    var reviewerId = "99999";
+
+    logger.info("Sending process...");
+    ResponseEntity<LoanProcApi.EmptyResponse> emptyRes =
+            webClient.post()
+                    .uri("/loanproc/"+loanAppId+"/process")
+                    .retrieve()
+                    .toEntity(LoanProcApi.EmptyResponse.class)
+                    .block(timeout);
+
+    assertEquals(HttpStatus.OK,emptyRes.getStatusCode());
+
+    logger.info("Sending get...");
+    LoanProcApi.GetResponse getRes =
+            webClient.get()
+                    .uri("/loanproc/"+loanAppId)
+                    .retrieve()
+                    .bodyToMono(LoanProcApi.GetResponse.class)
+                    .block(timeout);
+
+    assertEquals(LoanProcDomainStatus.STATUS_READY_FOR_REVIEW, getRes.state().status());
+
+    logger.info("Sending approve...");
+    emptyRes =
+            webClient.post()
+                    .uri("/loanproc/"+loanAppId+"/approve")
+                    .bodyValue(new LoanProcApi.ApproveRequest(reviewerId))
+                    .retrieve()
+                    .toEntity(LoanProcApi.EmptyResponse.class)
+                    .block(timeout);
+
+    logger.info("Sending get...");
+    getRes =
+            webClient.get()
+                    .uri("/loanproc/"+loanAppId)
+                    .retrieve()
+                    .bodyToMono(LoanProcApi.GetResponse.class)
+                    .block(timeout);
+
+    assertEquals(LoanProcDomainStatus.STATUS_APPROVED,getRes.state().status());
   }
 }
