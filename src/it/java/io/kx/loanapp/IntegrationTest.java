@@ -5,6 +5,7 @@ import io.kx.loanapp.api.LoanAppApi;
 import io.kx.loanapp.domain.LoanAppDomainStatus;
 import io.kx.loanproc.api.LoanProcApi;
 import io.kx.loanproc.domain.LoanProcDomainStatus;
+import io.kx.loanproc.view.LoanProcViewModel;
 import kalix.springsdk.testkit.KalixIntegrationTestKitSupport;
 
 import org.junit.jupiter.api.Test;
@@ -135,4 +136,74 @@ public class IntegrationTest extends KalixIntegrationTestKitSupport {
 
     assertEquals(LoanProcDomainStatus.STATUS_APPROVED,getRes.state().status());
   }
+
+  @Test
+  public void loanProcHappyPathWithView() throws Exception {
+    var loanAppId = UUID.randomUUID().toString();
+    var reviewerId = "99999";
+
+    logger.info("Sending process...");
+    ResponseEntity<LoanProcApi.EmptyResponse> emptyRes =
+            webClient.post()
+                    .uri("/loanproc/"+loanAppId+"/process")
+                    .retrieve()
+                    .toEntity(LoanProcApi.EmptyResponse.class)
+                    .block(timeout);
+
+    assertEquals(HttpStatus.OK,emptyRes.getStatusCode());
+
+    logger.info("Sending get...");
+    LoanProcApi.GetResponse getRes =
+            webClient.get()
+                    .uri("/loanproc/"+loanAppId)
+                    .retrieve()
+                    .bodyToMono(LoanProcApi.GetResponse.class)
+                    .block(timeout);
+
+    assertEquals(LoanProcDomainStatus.STATUS_READY_FOR_REVIEW, getRes.state().status());
+
+    //views are eventually consistent
+    Thread.sleep(2000);
+    logger.info("Checking view...");
+
+    List<LoanProcViewModel.ViewRecord> viewResList =
+            webClient.post()
+                    .uri("/loanproc/views/by-status")
+                    .bodyValue(new LoanProcViewModel.ViewRequest(LoanProcDomainStatus.STATUS_READY_FOR_REVIEW.name()))
+                    .retrieve()
+                    .bodyToFlux(LoanProcViewModel.ViewRecord.class)
+                    .collectList().block(timeout);
+
+    assertTrue(viewResList.stream().filter(vr -> vr.loanAppId().equals(loanAppId)).findFirst().isPresent());
+
+    logger.info("Sending approve...");
+    emptyRes =
+            webClient.post()
+                    .uri("/loanproc/"+loanAppId+"/approve")
+                    .bodyValue(new LoanProcApi.ApproveRequest(reviewerId))
+                    .retrieve()
+                    .toEntity(LoanProcApi.EmptyResponse.class)
+                    .block(timeout);
+
+    logger.info("Sending get...");
+    getRes =
+            webClient.get()
+                    .uri("/loanproc/"+loanAppId)
+                    .retrieve()
+                    .bodyToMono(LoanProcApi.GetResponse.class)
+                    .block(timeout);
+
+    assertEquals(LoanProcDomainStatus.STATUS_APPROVED,getRes.state().status());
+
+    viewResList =
+            webClient.post()
+                    .uri("/loanproc/views/by-status")
+                    .bodyValue(new LoanProcViewModel.ViewRequest(LoanProcDomainStatus.STATUS_READY_FOR_REVIEW.name()))
+                    .retrieve()
+                    .bodyToFlux(LoanProcViewModel.ViewRecord.class)
+                    .collectList().block(timeout);
+
+    assertTrue(!viewResList.stream().filter(vr -> vr.loanAppId().equals(loanAppId)).findFirst().isPresent());
+  }
+
 }
