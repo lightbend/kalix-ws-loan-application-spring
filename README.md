@@ -318,3 +318,56 @@ mvn deploy
 ```
 curl -XPOST -d {"statusId":"STATUS_APPROVED"} https://<somehost>.kalix.app/loanproc/views/by-status -H "Content-Type: application/json"
 ```
+# Eventing - Event driven communication
+## Action for submitted event (Loan application service -> Loan application processing service)
+1. Create package `io.kx.loanapp.action`
+2. Create `io.kx.loanapp.action.LoanAppToLoanProcEventingAction` class extending `Action`
+3. Add class level annotation: `@Subscribe.EventSourcedEntity(value = LoanAppService.class, ignoreUnknown = true)`
+4. Inject `KalixClient` via constructor
+5. Implement `onSubmitted` event handler method
+   
+<i><b>Tip</b></i>: Check content in `eventing-step-4` git branch
+
+## Action for approved & declined processing event (Loan application processing service -> Loan application service)
+1. Create package `io.kx.loanproc.action`
+2. Create `io.kx.loanproc.action.LoanProcToLoanAppEventingAction` class extending `Action`
+3. Add class level annotation: `@Subscribe.EventSourcedEntity(value = LoanProcService.class, ignoreUnknown = true)`
+4. Inject `KalixClient` via constructor
+5. Implement `onApproved` and `onDeclined` event handler methods
+  
+<i><b>Tip</b></i>: Check content in `eventing-step-4` git branch
+
+## Create integration tests for eventing (end-to-end test)
+Update `io.kx.IntegrationTest` and add `endToEndHappyPath` and `endToEndHappyPathWithDecline` test
+<i><b>Tip</b></i>: Check content in `eventing-step-4` git branch
+## Run integration test
+```
+mvn -Pit verify
+```
+## Package & Deploy
+```
+mvn deploy
+```
+## Test service in production
+
+Submit loan application:
+```
+curl -XPOST -d '{
+  "clientId": "12345",
+  "clientMonthlyIncomeCents": 60000,
+  "loanAmountCents": 20000,
+  "loanDurationMonths": 12
+}' https://<somehost>.kalix.app/loanapp/3/submit -H "Content-Type: application/json"
+```
+Check loan processing status:
+```
+curl -XPOST -d {"statusId":"STATUS_READY_FOR_REVIEW"} https://<somehost>.kalix.app/loanproc/views/by-status -H "Content-Type: application/json"
+```
+Approve loan processing:
+```
+curl -XPOST -d '{"reviewerId":"9999"}' https://<somehost>.kalix.app/loanproc/3/approve -H "Content-Type: application/json"
+```
+Get loan application:
+```
+curl -XGET https://<somehost>.kalix.app/loanapp/3 -H "Content-Type: application/json"
+```
