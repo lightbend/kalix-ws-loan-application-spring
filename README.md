@@ -1,4 +1,4 @@
-# Kalix Workshop - Loan application - Spring 
+# Kalix Workshop - Loan application - Spring
 Not supported by Lightbend in any conceivable way, not open for contributions.
 ## Prerequisite
 Java 17<br>
