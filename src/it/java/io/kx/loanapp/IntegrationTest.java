@@ -2,6 +2,7 @@ package io.kx.loanapp;
 
 import io.kx.Main;
 import io.kx.loanapp.api.LoanAppApi;
+import io.kx.loanapp.domain.LoanAppDomainState;
 import io.kx.loanapp.domain.LoanAppDomainStatus;
 import io.kx.loanproc.api.LoanProcApi;
 import io.kx.loanproc.domain.LoanProcDomainStatus;
@@ -382,6 +383,67 @@ public class IntegrationTest extends KalixIntegrationTestKitSupport {
                     .block(timeout);
 
     assertEquals(LoanAppDomainStatus.STATUS_DECLINED,getRes.state().status());
+
+
+  }
+
+  @Test
+  public void endToEndHappyPathWithGw() throws Exception {
+
+    var reviewerId = "99999";
+    var submitRequest = new LoanAppApi.SubmitRequest(
+            "clientId",
+            5000,
+            2000,
+            36);
+
+    logger.info("Sending loan app submit...");
+    ResponseEntity<LoanAppDomainState> submitRes =
+            webClient.post()
+                    .uri("/loanapp-gw/submit")
+                    .bodyValue(submitRequest)
+                    .retrieve()
+                    .toEntity(LoanAppDomainState.class)
+                    .block(timeout);
+
+    assertEquals(HttpStatus.OK,submitRes.getStatusCode());
+    var loanAppId = submitRes.getBody().loanAppId();
+
+    //views are eventually consistent
+    Thread.sleep(2000);
+
+    List<LoanProcViewModel.ViewRecord> viewResList =
+            webClient.post()
+                    .uri("/loanproc/views/by-status")
+                    .bodyValue(new LoanProcViewModel.ViewRequest(LoanProcDomainStatus.STATUS_READY_FOR_REVIEW.name()))
+                    .retrieve()
+                    .bodyToFlux(LoanProcViewModel.ViewRecord.class)
+                    .collectList().block(timeout);
+
+    assertTrue(viewResList.stream().filter(vr -> vr.loanAppId().equals(loanAppId)).findFirst().isPresent());
+
+
+    logger.info("Sending loan proc approve...");
+    ResponseEntity<LoanProcApi.EmptyResponse> emptyLpRes =
+            webClient.post()
+                    .uri("/loanproc/"+loanAppId+"/approve")
+                    .bodyValue(new LoanProcApi.ApproveRequest(reviewerId))
+                    .retrieve()
+                    .toEntity(LoanProcApi.EmptyResponse.class)
+                    .block(timeout);
+
+    //eventing is eventually consistent
+    Thread.sleep(2000);
+
+    logger.info("Sending get on loan app...");
+    LoanAppApi.GetResponse getRes =
+            webClient.get()
+                    .uri("/loanapp/"+loanAppId)
+                    .retrieve()
+                    .bodyToMono(LoanAppApi.GetResponse.class)
+                    .block(timeout);
+
+    assertEquals(LoanAppDomainStatus.STATUS_APPROVED,getRes.state().status());
 
 
   }
