@@ -407,6 +407,9 @@ public class IntegrationTest extends KalixIntegrationTestKitSupport {
                     .block(timeout);
 
     assertEquals(HttpStatus.OK,submitRes.getStatusCode());
+    assertTrue(submitRes.getBody().loanAppId()!=null);
+    assertEquals(LoanAppDomainStatus.STATUS_IN_REVIEW,submitRes.getBody().status());
+
     var loanAppId = submitRes.getBody().loanAppId();
 
     //views are eventually consistent

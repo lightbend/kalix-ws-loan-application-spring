@@ -7,8 +7,6 @@ import io.kx.loanproc.api.LoanProcApi;
 import kalix.javasdk.action.Action;
 import kalix.springsdk.KalixClient;
 import kalix.springsdk.annotations.Subscribe;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.concurrent.CompletionStage;
 

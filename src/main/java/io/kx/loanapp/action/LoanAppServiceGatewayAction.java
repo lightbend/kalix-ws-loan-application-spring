@@ -24,8 +24,9 @@ public class LoanAppServiceGatewayAction extends Action {
     public Action.Effect<LoanAppDomainState> submit(@RequestBody LoanAppApi.SubmitRequest request){
         var loanAppId = UUID.randomUUID().toString();
         CompletionStage<LoanAppApi.EmptyResponse> submit = kalixClient.post("/loanapp/"+loanAppId+"/submit",request, LoanAppApi.EmptyResponse.class).execute();
-        CompletionStage<LoanAppApi.GetResponse> get = kalixClient.get("/loanapp/"+loanAppId, LoanAppApi.GetResponse.class).execute();
-        CompletionStage<LoanAppDomainState> res = submit.thenCompose(r -> get).thenApply(LoanAppApi.GetResponse::state);
+        CompletionStage<LoanAppDomainState> res = submit.thenCompose(r ->
+                                                        kalixClient.get("/loanapp/"+loanAppId, LoanAppApi.GetResponse.class).execute()
+                                                   ).thenApply(LoanAppApi.GetResponse::state);
         return effects().asyncReply(res);
     }
 }
