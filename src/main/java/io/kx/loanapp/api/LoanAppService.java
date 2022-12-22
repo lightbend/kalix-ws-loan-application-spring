@@ -5,6 +5,7 @@ import io.kx.loanapp.domain.LoanAppDomainEvent;
 import io.kx.loanapp.domain.LoanAppDomainState;
 import kalix.javasdk.eventsourcedentity.EventSourcedEntity;
 import kalix.javasdk.eventsourcedentity.EventSourcedEntityContext;
+import kalix.springsdk.annotations.Acl;
 import kalix.springsdk.annotations.EntityKey;
 import kalix.springsdk.annotations.EntityType;
 import kalix.springsdk.annotations.EventHandler;
@@ -32,6 +33,7 @@ public class LoanAppService extends EventSourcedEntity<LoanAppDomainState> {
     }
 
     @PostMapping("/submit")
+    @Acl(deny = @Acl.Matcher(principal = Acl.Principal.INTERNET))
     public Effect<LoanAppApi.EmptyResponse> submit(@RequestBody LoanAppApi.SubmitRequest request){
         switch (currentState().status()){
             case STATUS_UNKNOWN:
